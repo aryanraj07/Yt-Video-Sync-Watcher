@@ -1,9 +1,11 @@
 import { v2 as cloudinary } from "cloudinary";
 import fs from "fs";
+import dotenv from "dotenv";
+dotenv.config();
 cloudinary.config({
-  cloud_name: "dnefuj8rd",
-  api_key: "937929829647857",
-  api_secret: "<your_api_secret>", // Click 'View API Keys' above to copy your API secret
+  cloud_name: process.env.CLOUDINARY_API_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET, // Click 'View API Keys' above to copy your API secret
 });
 
 async function uploadOnCloudinary(localPath) {
@@ -15,7 +17,10 @@ async function uploadOnCloudinary(localPath) {
     console.log("FIle uploaded with url ", response.url);
     return response;
   } catch (err) {
-    fs.unlinkSync(localPath); //temporarly remove the file from the server
+    if (fs.existsSync(localPath)) {
+      fs.unlinkSync(localPath);
+    }
+    console.error("Upload error:", err);
     return null;
   }
 }

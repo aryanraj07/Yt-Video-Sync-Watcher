@@ -1,34 +1,56 @@
-import { Room } from "../models/room.model.js";
-import { generateRoomCode } from "../utils/genereateRoomCode.js";
+import { Chat } from "../models/chat.model.js";
 
 export const registerSocketHandlers = (io, socket) => {
-  socket.on("create_room", async ({ username, videoUrl }) => {
-    const roomCode = generateRoomCode();
-
-    const room = await Room.create({});
-    socket.join(roomCode);
-    io.to(roomCode).emit("room_created", { roomCode });
+  // socket.user populated by middleware (id, username)
+  socket.on("room:join", async ({ roomId }) => {
+    try {
+      socket.join(roomId);
+      // optionally add socket.id to a room map or DB
+      // notify others
+      socket.to(roomId).emit("room:user-joined", { user: socket.user });
+      // send recent messages to the joining user only
+      const recent = await Chat.find({ roomId })
+        .sort({ createdAt: 1 })
+        .limit(100)
+        .populate("sender", "username avatar");
+      socket.emit("chat:history", recent);
+    } catch (err) {
+      socket.emit("error", { message: "Failed to join room" });
+    }
   });
+  socket.on("chat:send", async ({ roomId, message }) => {
+    try {
+      const chat = await Chat.create({
+        roomId,
+        sender: socket.user._id,
+        message,
+      });
+      console.log(chat);
 
-  socket.on("join_room", async ({ username, roomCode }) => {
-    // Validate room exists
-    socket.join(roomCode);
-    io.to(roomCode).emit("user_joined", { username });
+      const populated = await chat.populate("sender", "username avatar");
+      io.to(roomId).emit("chat:receive", populated);
+    } catch (err) {
+      socket.emit("error", { error: "Message Failed" });
+    }
   });
-
-  socket.on("play_video", ({ roomId, timestamp }) => {
-    socket.to(roomId).emit("play_video", { timestamp });
+  socket.on("video:control", ({ roomId, action, currentTime }) => {
+    if (!["play", "pause", "seek"].includes(action)) return;
+    //broadcast to everyone except sender to avoid double handling
+    socket
+      .to(roomId)
+      .emit("video:control", { action, currentTime, by: socket.user.username });
   });
-
-  socket.on("pause_video", ({ roomId, timestamp }) => {
-    socket.to(roomId).emit("pause_video", { timestamp });
+  socket.on("request:state", async (roomId) => {
+    // When new user wants current state, host (or anyone) can respond with room state
+    // Implement storing of last known state in-memory or DB if you want persistence
+    socket.to(roomId).emit("request:state", { by: socket.user._id });
   });
-
-  socket.on("seek_video", ({ roomId, timestamp }) => {
-    socket.to(roomId).emit("seek_video", { timestamp });
-  });
-
   socket.on("disconnect", () => {
-    // Remove user from DB and notify others
+    // Notify all rooms the user was in (except the default socket room)
+    for (const room of socket.rooms) {
+      if (room !== socket.id) {
+        io.to(room).emit("left-room", { user: socket.user });
+      }
+    }
   });
 };
