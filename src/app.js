@@ -13,14 +13,14 @@ const cors = require("cors");
 // Get allowed origins from env or fallback to localhost
 
 // CORS middleware
+console.log(process.env.FRONTEND_URL);
+
 app.use(
   cors({
     origin: process.env.FRONTEND_URL,
     credentials: true,
   })
 );
-
-console.log(process.env.FRONTEND_URL?.split(","));
 
 app.use(morgan());
 app.use(cookieParser());
