@@ -8,8 +8,6 @@ import roomRoutes from "./routes/roomRoutes.js";
 import chatRoutes from "./routes/chatRoutes.js";
 import friendRoutes from "./routes/friendRoutes.js";
 app.use(express.json({ limit: "16kb" }));
-const cors = require("cors");
-
 // Get allowed origins from env or fallback to localhost
 
 // CORS middleware
