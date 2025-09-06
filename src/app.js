@@ -11,24 +11,11 @@ app.use(express.json({ limit: "16kb" }));
 const cors = require("cors");
 
 // Get allowed origins from env or fallback to localhost
-const allowedOrigins = process.env.FRONTEND_URL
-  ? process.env.FRONTEND_URL.split(",").map((url) => url.trim())
-  : ["http://localhost:5173"];
 
 // CORS middleware
 app.use(
   cors({
-    origin: function (origin, callback) {
-      // allow requests with no origin (like Postman or mobile apps)
-      if (!origin) return callback(null, true);
-
-      // check if the origin is allowed
-      if (allowedOrigins.includes(origin)) {
-        callback(null, true);
-      } else {
-        callback(new Error(`CORS policy: ${origin} not allowed`));
-      }
-    },
+    origin: process.env.FRONTEND_URL,
     credentials: true,
   })
 );
