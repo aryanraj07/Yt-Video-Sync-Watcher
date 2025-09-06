@@ -82,6 +82,38 @@ const refreshAccessToken = async (req, res) => {
     // throw new ApiError(500, err?.msg || "Error in refreshing the access token");
   }
 };
+export const changeCurrentPassword = asyncHandler(async (req, res) => {
+  //oldpassword  newPassword confirmPassword
+  //new password confirm password  match nhi hua hai to throw error
+  // user find kr ke user id and user database se nikalna hai
+  // user.isCorrectPassword kr ke
+  // user.password=newpassword kr dena hai
+  //user
+  const { oldPassword, newPassword, confirmPassword } = req.body;
+  const userId = req.user?._id;
+  console.log("Id", userId);
+  console.log("newPassword", newPassword);
+  console.log("confirmPassword", confirmPassword);
+
+  if (newPassword !== confirmPassword) {
+    throw new ApiError(400, " New password and confirm password did not match");
+  }
+  const user = await User.findById(userId);
+  console.log(user);
+
+  if (!user) {
+    throw new ApiError(400, "User not found");
+  }
+  const checkPassword = user.isPasswordCorrect(oldPassword);
+  if (!checkPassword) {
+    throw new ApiError(400, "Invalid old password");
+  }
+  user.password = newPassword;
+  await user.save({ validateBeforeSave: false });
+  return res
+    .status(200)
+    .send(new ApiResponse(200, {}, "Password changed succesfully"));
+});
 const registerController = asyncHandler(async (req, res) => {
   //get user details from frontend
   //validate each required detail is send and not empty
@@ -106,10 +138,8 @@ const registerController = asyncHandler(async (req, res) => {
       throw new ApiError("409", "User already exists please login");
     }
     const avatarLocalPath = req.files?.avatar[0]?.path;
-    console.log(avatarLocalPath);
 
     const coverImageLocalPath = req.files?.coverImage[0]?.path;
-    console.log(coverImageLocalPath);
 
     if (!avatarLocalPath) {
       throw new ApiError("400", "User avatar is required");

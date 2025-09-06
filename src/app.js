@@ -6,6 +6,7 @@ const app = express();
 import userRoutes from "./routes/authRoutes.js";
 import roomRoutes from "./routes/roomRoutes.js";
 import chatRoutes from "./routes/chatRoutes.js";
+import friendRoutes from "./routes/friendRoutes.js";
 app.use(express.json({ limit: "16kb" }));
 app.use(
   cors({
@@ -20,4 +21,5 @@ app.use(express.static("public"));
 app.use("/api/v1/users", userRoutes);
 app.use("/api/v1/room", roomRoutes);
 app.use("/api/v1/chat", chatRoutes);
+app.use("/api/v1/friend", friendRoutes);
 export default app;

@@ -14,8 +14,19 @@ export const registerSocketHandlers = (io, socket) => {
         .limit(100)
         .populate("sender", "username avatar");
       socket.emit("chat:history", recent);
+      if (roomVideoState[roomId]) {
+        socket.emit("video:state", roomVideoState[roomId]);
+      }
     } catch (err) {
       socket.emit("error", { message: "Failed to join room" });
+    }
+  });
+  socket.on("room:leave", ({ roomId }) => {
+    try {
+      socket.leave(roomId);
+      socket.to(roomId).emit("room:user-leave", { user: socket.user });
+    } catch (err) {
+      socket.emit("error", { message: "Failed to leave room" });
     }
   });
   socket.on("chat:send", async ({ roomId, message }) => {
@@ -33,12 +44,26 @@ export const registerSocketHandlers = (io, socket) => {
       socket.emit("error", { error: "Message Failed" });
     }
   });
+  socket.on("chat:typing", async ({ roomId }) => {
+    try {
+      socket.to(roomId).emit("chat:typing", { user: socket.user });
+    } catch (err) {
+      socket.emit("error", { message: "Typing indicator failed" });
+    }
+  });
   socket.on("video:control", ({ roomId, action, currentTime }) => {
-    if (!["play", "pause", "seek"].includes(action)) return;
-    //broadcast to everyone except sender to avoid double handling
-    socket
-      .to(roomId)
-      .emit("video:control", { action, currentTime, by: socket.user.username });
+    try {
+      if (!["play", "pause", "seek"].includes(action)) return;
+
+      //broadcast to everyone except sender to avoid double handling
+      socket.to(roomId).emit("video:control", {
+        action,
+        currentTime,
+        by: socket.user.username,
+      });
+    } catch (err) {
+      console.log(err);
+    }
   });
   socket.on("request:state", async (roomId) => {
     // When new user wants current state, host (or anyone) can respond with room state

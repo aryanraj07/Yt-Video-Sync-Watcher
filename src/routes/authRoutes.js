@@ -1,5 +1,6 @@
 import express from "express";
 import {
+  changeCurrentPassword,
   loginController,
   logout,
   refreshAccessToken,
@@ -20,6 +21,7 @@ router.route("/register").post(
 router.route("/refresh-token").post(refreshAccessToken);
 router.route("/login").post(loginController);
 router.route("/logout").post(verifyJwt, logout);
+router.route("/reset-password").post(verifyJwt, changeCurrentPassword);
 router.route("/check").get(verifyJwt, (req, res) => {
   res
     .status(200)
