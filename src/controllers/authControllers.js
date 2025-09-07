@@ -4,6 +4,11 @@ import { ApiResponse } from "../utils/ApiResponse.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { uploadOnCloudinary } from "../utils/cloudinary.js";
 import jwt from "jsonwebtoken";
+const options = {
+  httpOnly: true,
+  secure: process.env.NODE_ENV === "production", // true in production
+  sameSite: "none",
+};
 const generateAccessTokenAndRefreshToken = async (userId) => {
   try {
     //find user
@@ -57,11 +62,6 @@ const refreshAccessToken = async (req, res) => {
       throw new ApiError(401, "Token has expired");
     const { accessToken, refreshToken: newRefreshToken } =
       await generateAccessTokenAndRefreshToken(user?._id);
-    const options = {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "none",
-    };
     return res
       .status(200)
       .cookie("accessToken", accessToken, options)
@@ -203,11 +203,6 @@ const loginController = asyncHandler(async (req, res) => {
     );
 
     //this means only server can modity the cookies
-    const options = {
-      httpOnly: true,
-      secure: true,
-      sameSite: "none",
-    };
     return res
       .status(200)
       .cookie("accessToken", accessToken, options)
@@ -245,11 +240,6 @@ const logout = asyncHandler(async (req, res) => {
       },
       { new: true }
     );
-    const options = {
-      httpOnly: true,
-      secure: true,
-      sameSite: "none",
-    };
     return res
       .status(200)
       .clearCookie("accessToken", options)
