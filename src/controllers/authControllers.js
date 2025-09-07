@@ -43,6 +43,8 @@ const refreshAccessToken = async (req, res) => {
   //set in the cookies and send response
   const incommingRefreshToken =
     req.cookies.refreshToken || req.body.refreshToken;
+  console.log("Incoming cookies:", req.cookies);
+  console.log("Incoming body:", req.body);
   if (!incommingRefreshToken) throw new ApiError(401, "Token not found");
   console.log("incomming refresh token is ", incommingRefreshToken);
 
