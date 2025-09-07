@@ -12,10 +12,27 @@ app.use(express.json({ limit: "16kb" }));
 
 // CORS middleware
 console.log(process.env.FRONTEND_URL);
+app.use((req, res, next) => {
+  console.log("Incoming request origin:", req.headers.origin);
+  next();
+});
+
+const allowedOrigins = [
+  "http://localhost:5173", // dev
+  "https://playnwatch.vercel.app", // prod
+];
 
 app.use(
   cors({
-    origin: process.env.FRONTEND_URL,
+    origin: function (origin, callback) {
+      if (!origin) return callback(null, true); // allow mobile apps / curl / Postman
+      if (allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        console.log("❌ CORS blocked origin:", origin);
+        callback(new Error("Not allowed by CORS"));
+      }
+    },
     credentials: true,
   })
 );
