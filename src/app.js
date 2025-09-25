@@ -8,6 +8,8 @@ import roomRoutes from "./routes/roomRoutes.js";
 import chatRoutes from "./routes/chatRoutes.js";
 import friendRoutes from "./routes/friendRoutes.js";
 app.use(express.json({ limit: "16kb" }));
+app.use(morgan());
+app.use(cookieParser());
 // Get allowed origins from env or fallback to localhost
 
 // CORS middleware
@@ -22,21 +24,18 @@ const allowedOrigins = [
 ];
 app.use(
   cors({
-    origin: function (origin, callback) {
-      if (!origin) return callback(null, true); // allow mobile apps / curl / Postman
-      if (allowedOrigins.includes(origin)) {
+    origin: (origin, callback) => {
+      if (!origin || allowedOrigins.includes(origin)) {
         callback(null, true);
       } else {
-        console.log("❌ CORS blocked origin:", origin);
+        console.log("❌ CORS blocked:", origin);
         callback(new Error("Not allowed by CORS"));
       }
     },
-    credentials: true,
+    credentials: true, // ✅ cookies send/receive
   })
 );
 
-app.use(morgan());
-app.use(cookieParser());
 app.use(express.urlencoded({ extended: true, limit: "16kb" }));
 app.use(express.static("public"));
 app.use("/api/v1/users", userRoutes);
