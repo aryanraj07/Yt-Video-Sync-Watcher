@@ -21,7 +21,6 @@ const generateAccessTokenAndRefreshToken = async (userId) => {
       throw new ApiError(404, "User not found");
     }
     const accessToken = user.generateAccessToken();
-    console.log(accessToken);
 
     const refreshToken = user.generateRefreshToken();
     user.refreshToken = refreshToken;
@@ -43,10 +42,8 @@ const refreshAccessToken = async (req, res) => {
   //set in the cookies and send response
   const incommingRefreshToken =
     req.cookies.refreshToken || req.body.refreshToken;
-  console.log("Incoming cookies:", req.cookies);
-  console.log("Incoming body:", req.body);
+
   if (!incommingRefreshToken) throw new ApiError(401, "Token not found");
-  console.log("incomming refresh token is ", incommingRefreshToken);
 
   try {
     const decodingToken = jwt.verify(
@@ -58,7 +55,6 @@ const refreshAccessToken = async (req, res) => {
     if (!user) {
       throw new ApiError(401, "Token has expired");
     }
-    console.log("Database refresh token", user.refreshToken);
 
     if (user.refreshToken !== incommingRefreshToken)
       throw new ApiError(401, "Token has expired");
@@ -93,15 +89,11 @@ export const changeCurrentPassword = asyncHandler(async (req, res) => {
   //user
   const { oldPassword, newPassword, confirmPassword } = req.body;
   const userId = req.user?._id;
-  console.log("Id", userId);
-  console.log("newPassword", newPassword);
-  console.log("confirmPassword", confirmPassword);
 
   if (newPassword !== confirmPassword) {
     throw new ApiError(400, " New password and confirm password did not match");
   }
   const user = await User.findById(userId);
-  console.log(user);
 
   if (!user) {
     throw new ApiError(400, "User not found");
@@ -251,4 +243,84 @@ const logout = asyncHandler(async (req, res) => {
     throw new ApiError(500, err.msg);
   }
 });
-export { registerController, loginController, logout, refreshAccessToken };
+const updateUserAccountDetails = asyncHandler(async (req, res) => {
+  // fullname ,email get from req.body
+  //find user and update  and return response
+  const { fullName, email } = req.body;
+
+  User.findb;
+  const newUser = await User.findByIdAndUpdate(
+    req.user?._id,
+    {
+      $set: {
+        fullName,
+        email,
+      },
+    },
+    { new: true }
+  ).select("-password -refreshToken");
+  return res
+    .status(200)
+    .send(
+      new ApiResponse(
+        200,
+        { user: newUser },
+        "Updated user details successfully"
+      )
+    );
+});
+const updateAvatarImage = asyncHandler(async (req, res) => {
+  const avatarUrlPath = req.file?.path;
+
+  if (!avatarUrlPath) {
+    throw new ApiError(400, "Url not found");
+  }
+  const avatar = await uploadOnCloudinary(avatarUrlPath);
+  if (!avatar) {
+    throw new ApiError(400, "Avatar not uploaded");
+  }
+  const user = await User.findByIdAndUpdate(
+    req?.user?._id,
+    {
+      $set: {
+        avatar: avatar.url,
+      },
+    },
+    { new: true }
+  ).select("-password -refreshToken");
+  return res
+    .status(200)
+    .send(new ApiResponse(200, { user }, "Avatar image updated successfully"));
+});
+const updateCoverImage = asyncHandler(async (req, res) => {
+  const coverUrlPath = req.file?.path;
+  if (!coverUrlPath) {
+    throw new ApiError(400, "Url not found");
+  }
+  const coverImage = await uploadOnCloudinary(coverUrlPath);
+  if (!coverImage) {
+    throw new ApiError(400, "Cover image not uploaded");
+  }
+  const user = await User.findByIdAndUpdate(
+    req?.user?._id,
+    {
+      $set: {
+        coverImage: coverImage.url,
+      },
+    },
+    { new: true }
+  ).select("-password -refreshToken");
+  return res
+    .status(200)
+    .send(new ApiResponse(200, { user }, "Cover image updated successfully"));
+});
+//get file  path    req.user.file
+export {
+  registerController,
+  loginController,
+  logout,
+  refreshAccessToken,
+  updateUserAccountDetails,
+  updateAvatarImage,
+  updateCoverImage,
+};

@@ -11,9 +11,8 @@ app.use(express.json({ limit: "16kb" }));
 // Get allowed origins from env or fallback to localhost
 
 // CORS middleware
-console.log(process.env.FRONTEND_URL);
+
 app.use((req, res, next) => {
-  console.log("Incoming request origin:", req.headers.origin);
   next();
 });
 
@@ -21,7 +20,6 @@ const allowedOrigins = [
   "http://localhost:5173", // dev
   "https://playnwatch.vercel.app", // prod
 ];
-
 app.use(
   cors({
     origin: function (origin, callback) {
