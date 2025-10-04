@@ -6,8 +6,8 @@ import { uploadOnCloudinary } from "../utils/cloudinary.js";
 import jwt from "jsonwebtoken";
 const options = {
   httpOnly: true,
-  secure: process.env.NODE_ENV === "production", // true in production
-  sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
+  secure: true, // true in production
+  sameSite: "none",
   path: "/",
   domain:
     process.env.NODE_ENV === "production"
