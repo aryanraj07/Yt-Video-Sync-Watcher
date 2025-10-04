@@ -24,8 +24,13 @@ app.use((req, res, next) => {
 // ];
 app.use(
   cors({
-    origin: ["https://playnwatch.vercel.app", "http://localhost:5173"],
-    credentials: true,
+    origin: [
+      "https://playnwatch.vercel.app", // frontend production
+      "http://localhost:5173", // frontend local
+    ],
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+    credentials: true, // ✅ allow cookies
   })
 );
 // app.use(
