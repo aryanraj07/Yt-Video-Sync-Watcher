@@ -9,6 +9,10 @@ const options = {
   secure: process.env.NODE_ENV === "production", // true in production
   sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
   path: "/",
+  domain:
+    process.env.NODE_ENV === "production"
+      ? "playnchat.onrender.com" // 👈 critical line
+      : undefined,
 };
 const generateAccessTokenAndRefreshToken = async (userId) => {
   try {
