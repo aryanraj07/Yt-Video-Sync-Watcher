@@ -50,7 +50,14 @@ app.use(
 app.use(express.urlencoded({ extended: true, limit: "16kb" }));
 app.use(express.static("public"));
 app.get("/api/v1/test-cookie", (req, res) => {
-  res.json({ cookies: req.cookies });
+  res
+    .cookie("test", "12345", {
+      httpOnly: true,
+      secure: true,
+      sameSite: "none",
+      path: "/",
+    })
+    .send({ message: "Cookie should be set!" });
 });
 app.use("/api/v1/users", userRoutes);
 app.use("/api/v1/room", roomRoutes);
