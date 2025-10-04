@@ -33,9 +33,17 @@ router.route("/login").post(loginController);
 router.route("/logout").post(verifyJwt, logout);
 router.route("/reset-password").post(verifyJwt, changeCurrentPassword);
 router.route("/check").get(verifyJwt, (req, res) => {
-  res
-    .status(200)
-    .send(new ApiResponse(200, { user: req.user }, "User verified"));
+  try {
+    res
+      .status(200)
+      .send(new ApiResponse(200, { user: req.user }, "User verified"));
+  } catch (err) {
+    return res.status(500).send({
+      name: err.name,
+      message: err.message,
+      stack: err.stack,
+    });
+  }
 });
 router.route("/update-profile").post(verifyJwt, updateUserAccountDetails);
 

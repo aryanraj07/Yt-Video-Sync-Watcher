@@ -7,7 +7,8 @@ import jwt from "jsonwebtoken";
 const options = {
   httpOnly: true,
   secure: process.env.NODE_ENV === "production", // true in production
-  sameSite: "None",
+  sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
+  path: "/",
 };
 const generateAccessTokenAndRefreshToken = async (userId) => {
   try {
