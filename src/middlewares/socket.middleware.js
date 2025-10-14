@@ -2,12 +2,15 @@
 import jwt from "jsonwebtoken";
 import cookie from "cookie";
 import { registerSocketHandlers } from "../socket/syncHandlers.js";
+import { User } from "../models/user.model.js";
 
 export const initSocket = (io) => {
-  io.use((socket, next) => {
+  io.use(async (socket, next) => {
     try {
       // Extract cookies from the socket handshake headers
-      const token = socket.handshake.auth.token || "";
+      // const token = socket.handshake.auth.token || "";
+      const cookies = cookie.parse(socket.handshake.headers.cookie || "");
+      const token = cookies.accessToken;
 
       // Read access token
 
@@ -17,7 +20,15 @@ export const initSocket = (io) => {
 
       // Verify token
       const decoded = jwt.verify(token, process.env.ACCESS_TOKEN);
-      socket.user = decoded; // attach user info to socket
+      const user = await User.findById(decoded._id).select(
+        "_id username fullName email avatar"
+      );
+      if (!user) return next(new Error("User not found"));
+      socket.user = user; // attach user info to socket
+      console.log("Socket user detals decoded is ", socket.user);
+
+      socket.join(user._id.toString()); //join personal room using id
+      console.log("✅ Socket authenticated:", socket.user);
       next();
     } catch (err) {
       console.error("Socket auth failed:", err.message);

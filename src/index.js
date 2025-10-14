@@ -12,6 +12,8 @@ dotenv.config({
 import { connectDb } from "./db/index.js";
 import { registerSocketHandlers } from "./socket/syncHandlers.js";
 import { initSocket } from "./middlewares/socket.middleware.js";
+import { instrument } from "@socket.io/admin-ui";
+
 const port = process.env.PORT || 8002;
 
 connectDb()
@@ -26,8 +28,8 @@ const io = new Server(server, {
     credentials: true,
   },
 });
-
 initSocket(io);
+instrument(io, { auth: false });
 
 server.listen(port, () => {
   console.log("Server is running on port ", port);

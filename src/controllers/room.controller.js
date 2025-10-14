@@ -44,7 +44,13 @@ export const getSingleRoom = asyncHandler(async (req, res) => {
 
 export const getRooms = asyncHandler(async (req, res) => {
   try {
-    const rooms = await Room.find().populate("host members", "name email");
+    const userId = req.user._id;
+    const rooms = await Room.find({
+      $or: [{ host: userId }, { members: userId }],
+    }).populate("host members", "fullName email avatar");
+    console.log(rooms);
+
+    // const rooms = await Room.find().populate("host members", "name email");
     res.status(200).json({ success: true, rooms });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });

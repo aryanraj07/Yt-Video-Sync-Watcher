@@ -1,4 +1,5 @@
 import { Chat } from "../models/chat.model.js";
+import { Notification } from "../models/notification.model.js";
 
 export const registerSocketHandlers = (io, socket) => {
   // socket.user populated by middleware (id, username)
@@ -69,6 +70,54 @@ export const registerSocketHandlers = (io, socket) => {
     // When new user wants current state, host (or anyone) can respond with room state
     // Implement storing of last known state in-memory or DB if you want persistence
     socket.to(roomId).emit("request:state", { by: socket.user._id });
+  });
+
+  socket.on(
+    "notification:friend-request",
+    async ({ receiverId, notification }) => {
+      const formattedNotification = {
+        _id: notification._id,
+        sender: {
+          _id: socket.user._id,
+          username: socket.user.username,
+          avatar: socket.user.avatar,
+        },
+        receiver: receiverId,
+        friendRequestId: notification.friendRequestId,
+        type: "friend_request",
+        message: `${socket.user.username} sent you a friend request`,
+        isRead: false,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+      io.to(receiverId.toString()).emit(
+        "notification:new",
+        formattedNotification
+      );
+    }
+  );
+
+  socket.on("notification:send", async ({ receiverId, notification }) => {
+    const formattedNotification = {
+      _id: notification._id,
+      sender: {
+        _id: socket.user._id,
+        username: socket.user.username,
+        avatar: socket.user.avatar,
+      },
+      receiver: receiverId,
+      friendRequestId: notification.friendRequestId,
+      type: "friend_request",
+      message: `${socket.user.username} sent you a friend request`,
+      isRead: false,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+
+    io.to(receiverId.toString()).emit(
+      "notification:new",
+      formattedNotification
+    );
   });
   socket.on("disconnect", () => {
     // Notify all rooms the user was in (except the default socket room)

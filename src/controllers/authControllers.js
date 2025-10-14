@@ -9,6 +9,7 @@ const options = {
   secure: true, // true in production
   sameSite: "none",
   path: "/",
+  maxAge: 24 * 60 * 60 * 1000,
 };
 const generateAccessTokenAndRefreshToken = async (userId) => {
   try {
@@ -64,7 +65,10 @@ const refreshAccessToken = async (req, res) => {
     return res
       .status(200)
       .cookie("accessToken", accessToken, options)
-      .cookie("refreshToken", newRefreshToken, options)
+      .cookie("refreshToken", newRefreshToken, {
+        ...options,
+        maxAge: 10 * 24 * 24 * 60 * 1000,
+      })
       .send(
         new ApiResponse(
           200,
@@ -201,11 +205,14 @@ const loginController = asyncHandler(async (req, res) => {
     return res
       .status(200)
       .cookie("accessToken", accessToken, options)
-      .cookie("refreshToken", refreshToken, options)
+      .cookie("refreshToken", refreshToken, {
+        ...options,
+        maxAge: 10 * 24 * 24 * 60 * 1000,
+      })
       .send(
         new ApiResponse(
           200,
-          { user: loggedinUser, accessToken },
+          { user: loggedinUser },
           "User logged in successfully"
         )
       );
@@ -315,6 +322,7 @@ const updateCoverImage = asyncHandler(async (req, res) => {
     .status(200)
     .send(new ApiResponse(200, { user }, "Cover image updated successfully"));
 });
+
 //get file  path    req.user.file
 export {
   registerController,
