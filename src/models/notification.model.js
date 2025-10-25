@@ -14,7 +14,13 @@ const NotificationSchema = new mongoose.Schema(
     },
     type: {
       type: String,
-      enum: ["friend_request", "friend_accepted", "message", "system"],
+      enum: [
+        "friend_request",
+        "friend_accepted",
+        "message",
+        "system",
+        "room_invite",
+      ],
       required: true,
     },
     isRead: {
@@ -30,6 +36,13 @@ const NotificationSchema = new mongoose.Schema(
       ref: "User.friendRequests", // optional, just for clarity
       required: function () {
         return this.type === "friend_request";
+      },
+    },
+    roomId: {
+      type: mongoose.Schema.Types.ObjectId, // <-- store the ObjectId of friend request subdoc
+      ref: "Room", // optional, just for clarity
+      required: function () {
+        return this.type === "room_invite";
       },
     },
   },

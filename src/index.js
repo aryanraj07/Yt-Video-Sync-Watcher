@@ -13,7 +13,9 @@ import { connectDb } from "./db/index.js";
 import { registerSocketHandlers } from "./socket/syncHandlers.js";
 import { initSocket } from "./middlewares/socket.middleware.js";
 import { instrument } from "@socket.io/admin-ui";
-
+import { createClient } from "redis";
+import { createAdapter } from "@socket.io/redis-adapter";
+import { client, pubClient, subClient } from "../src/db/redisClient.js";
 const port = process.env.PORT || 8002;
 
 connectDb()
@@ -28,7 +30,14 @@ const io = new Server(server, {
     credentials: true,
   },
 });
-initSocket(io);
+io.adapter(createAdapter(pubClient, subClient));
+
+// Pass clients to Socket initialization
+initSocket(io, pubClient, subClient);
+
+// Optional test
+
+
 instrument(io, { auth: false });
 
 server.listen(port, () => {

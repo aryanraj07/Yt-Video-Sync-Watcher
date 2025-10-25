@@ -1,13 +1,23 @@
 import { Chat } from "../models/chat.model.js";
 import { Notification } from "../models/notification.model.js";
+import { getUserSocketId } from "./onlineUsers.js";
+import { client as redisClient } from "../db/redisClient.js";
 
-export const registerSocketHandlers = (io, socket) => {
+export const registerSocketHandlers = (io, socket, pubClient) => {
   // socket.user populated by middleware (id, username)
+  if (!socket.user) return;
   socket.on("room:join", async ({ roomId }) => {
     try {
       socket.join(roomId);
+      const current = await redisClient.get(`room:users:${roomId}`);
+      const userCount = current ? parseInt(current) + 1 : 1;
+
+      // Save new count and auto-expire after 10 mins
+      await redisClient.set(`room:users:${roomId}`, userCount, { EX: 600 });
+
       // optionally add socket.id to a room map or DB
       // notify others
+
       socket.to(roomId).emit("room:user-joined", { user: socket.user });
       // send recent messages to the joining user only
       const recent = await Chat.find({ roomId })
@@ -15,17 +25,30 @@ export const registerSocketHandlers = (io, socket) => {
         .limit(100)
         .populate("sender", "username avatar");
       socket.emit("chat:history", recent);
-      if (roomVideoState[roomId]) {
-        socket.emit("video:state", roomVideoState[roomId]);
+
+      const videoState = await redisClient.get(`video:state:${roomId}`);
+      if (videoState) {
+        socket.emit("video:state", JSON.parse(videoState));
       }
     } catch (err) {
       socket.emit("error", { message: "Failed to join room" });
     }
   });
-  socket.on("room:leave", ({ roomId }) => {
+  socket.on("room:leave", async ({ roomId }) => {
     try {
       socket.leave(roomId);
+      const current = await redisClient.get(`room:users:${roomId}`);
+      const userCount = Math.max(current ? parseInt(current) - 1 : 0, 0);
+
+      await redisClient.set(`room:users:${roomId}`, userCount, { EX: 600 });
+
+      io.to(roomId).emit("room:user-count", { count: userCount });
       socket.to(roomId).emit("room:user-leave", { user: socket.user });
+      if (userCount === 0) {
+        await redisClient.del(`room:users:${roomId}`);
+        await redisClient.del(`video:state:${roomId}`);
+        await redisClient.del(`chat:${roomId}`);
+      }
     } catch (err) {
       socket.emit("error", { message: "Failed to leave room" });
     }
@@ -40,11 +63,26 @@ export const registerSocketHandlers = (io, socket) => {
       console.log(chat);
 
       const populated = await chat.populate("sender", "username avatar");
+      await redisClient.lPush(`chat:${roomId}`, JSON.stringify(populated));
+      await redisClient.lTrim(`chat:${roomId}`, 0, 99); // keep last 100
+
+      await redisClient.expire(`chat:${roomId}`, 3600); // 1 hour
+      // publish to Redis channel
+      await pubClient.publish(
+        "chat_message",
+        JSON.stringify({ roomId, chat: populated })
+      );
+
       io.to(roomId).emit("chat:receive", populated);
     } catch (err) {
       socket.emit("error", { error: "Message Failed" });
     }
   });
+  // subClient.subscribe("chat_message", (msg) => {
+  //   const { roomId, chat } = JSON.parse(msg);
+  //   io.to(roomId).emit("chat:receive", chat);
+  // });
+
   socket.on("chat:typing", async ({ roomId }) => {
     try {
       socket.to(roomId).emit("chat:typing", { user: socket.user });
@@ -52,11 +90,24 @@ export const registerSocketHandlers = (io, socket) => {
       socket.emit("error", { message: "Typing indicator failed" });
     }
   });
-  socket.on("video:control", ({ roomId, action, currentTime }) => {
+  socket.on("video:control", async ({ roomId, action, currentTime }) => {
     try {
       if (!["play", "pause", "seek"].includes(action)) return;
 
       //broadcast to everyone except sender to avoid double handling
+      const state = {
+        roomId,
+        action,
+        currentTime,
+        by: socket.user.username,
+        updatedAt: Date.now(),
+      };
+      await redisClient.set(`video:state:${roomId}`, JSON.stringify(state), {
+        EX: 3600,
+      });
+
+      // Publish to Redis so all backend servers get this event
+      await pubClient.publish("video_control", JSON.stringify(state));
       socket.to(roomId).emit("video:control", {
         action,
         currentTime,
@@ -66,10 +117,17 @@ export const registerSocketHandlers = (io, socket) => {
       console.log(err);
     }
   });
+  // subClient.subscribe("video_control", (message) => {
+  //   const data = JSON.parse(message);
+  //   const { roomId, action, currentTime, by } = data;
+  //   io.to(roomId).emit("video:control", { action, currentTime, by });
+  // });
+
   socket.on("request:state", async (roomId) => {
-    // When new user wants current state, host (or anyone) can respond with room state
-    // Implement storing of last known state in-memory or DB if you want persistence
-    socket.to(roomId).emit("request:state", { by: socket.user._id });
+    const state = await redisClient.get(`video:state:${roomId}`);
+    if (state) {
+      socket.emit("video:state", JSON.parse(state));
+    }
   });
 
   socket.on(
@@ -119,12 +177,36 @@ export const registerSocketHandlers = (io, socket) => {
       formattedNotification
     );
   });
-  socket.on("disconnect", () => {
-    // Notify all rooms the user was in (except the default socket room)
-    for (const room of socket.rooms) {
-      if (room !== socket.id) {
-        io.to(room).emit("left-room", { user: socket.user });
+  socket.on("request:accepted", async ({ senderId, message }) => {
+    try {
+      const receiverSockets = getUserSocketId(senderId);
+      console.log("receiverSockets is ", receiverSockets);
+
+      if (receiverSockets.size > 0) {
+        // Emit to all active sockets (even if just one)
+        for (const socketId of receiverSockets) {
+          console.log(socketId);
+
+          io.to(socketId).emit("notification:friend-request-accepted", {
+            message,
+            sender: socket.user,
+          });
+        }
+        console.log(`✅ Friend acceptance sent to ${senderId}`);
+      } else {
+        console.log(`⚠️ User ${senderId} offline`);
       }
+
+      // persist notification in DB
+      await Notification.create({
+        sender: socket.user._id,
+        receiver: senderId,
+        type: "friend_accepted",
+        message: `${socket.user.username} accepted your friend request`,
+        isRead: false,
+      });
+    } catch (err) {
+      console.error("❌ Error handling request:accepted:", err);
     }
   });
 };

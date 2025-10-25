@@ -325,13 +325,21 @@ export const respondFriendRequestController = asyncHandler(async (req, res) => {
     }
     const sender = await User.findById(request.from);
     if (!sender) throw new ApiError(404, "sender does not exist");
-    if (action === "accept") {
+    if (action === "accepted") {
       if (!user.friends.includes(sender?._id)) user.friends.push(sender?._id);
       if (!sender.friends.includes(user?._id)) sender.friends.push(user?._id);
       await sender.save({ validateBeforeSave: false });
     }
-    user.friendRequests.filter((r) => r.id.toString() !== requestId);
+    user.friendRequests = user.friendRequests.filter(
+      (r) => r.id.toString() !== requestId.toString()
+    );
     await user.save({ validateBeforeSave: false });
+    await Notification.deleteMany({
+      $or: [
+        { sender: sender._id, receiver: user._id, type: "friend_request" },
+        { sender: user._id, receiver: sender._id, type: "friend_request" },
+      ],
+    });
     return res
       .status(200)
       .send(new ApiResponse(200, {}, `Friend request ${action}ed`));
@@ -358,6 +366,7 @@ export const searchUser = asyncHandler(async (req, res) => {
       .select("username avatar email friendRequests")
       .lean();
     const currentUser = await User.findById(req.user._id).lean();
+
     //lean function return plain js object instead of mongoose document
 
     const updatedUsers = users.map((u) => {
@@ -365,22 +374,25 @@ export const searchUser = asyncHandler(async (req, res) => {
         (friendId) => friendId.toString() === u._id.toString()
       );
 
-      const requestSent = u.friendRequests?.some(
+      const outgoingRequest = u.friendRequests?.find(
         (r) =>
           r.from.toString() === currentUser._id.toString() &&
           r.status === "pending"
       );
       ``;
-      const requestPendingFromThem = currentUser.friendRequests?.some(
+      const incomingRequest = currentUser.friendRequests?.find(
         (r) => r.from.toString() === u._id.toString() && r.status === "pending"
       );
+
       return {
         ...u,
         isFriend,
-        requestSent, // if you sent request to them
-        requestPendingFromThem, // if they sent to you
+        requestSent: !!outgoingRequest,
+        requestPendingFromThem: !!incomingRequest,
+        friendRequestId: outgoingRequest?._id || incomingRequest?._id || null,
       };
     });
+
     return res
       .status(200)
       .send(new ApiResponse(200, updatedUsers, "Users fetched successfully"));
