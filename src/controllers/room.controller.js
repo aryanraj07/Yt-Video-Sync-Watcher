@@ -1,6 +1,7 @@
 import { Notification } from "../models/notification.model.js";
 import { Room } from "../models/room.model.js";
 import { User } from "../models/user.model.js";
+import { getUserSocketId } from "../socket/onlineUsers.js";
 import { getIo } from "../socket/socket.js";
 import { ApiError } from "../utils/ApiErrors.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
@@ -82,18 +83,14 @@ export const joinARoom = asyncHandler(async (req, res) => {
 export const inviteToRoom = asyncHandler(async (req, res) => {
   try {
     const { roomId } = req.params;
-
     const { friendId } = req.body;
 
     const room = await Room.findById(roomId);
-
     if (!room) throw new ApiError(404, "Room not found");
 
     const friend = await User.findById(friendId);
-
     if (!friend) throw new ApiError(404, "Friend not found");
 
-    // Save notification or emit socket event
     const notification = await Notification.create({
       sender: req.user._id,
       receiver: friendId,
@@ -101,6 +98,7 @@ export const inviteToRoom = asyncHandler(async (req, res) => {
       message: `${req.user?.username} invited you to join room "${room.name}"`,
       roomId,
     });
+
     const formattedNotification = {
       _id: notification._id,
       sender: {
@@ -112,17 +110,40 @@ export const inviteToRoom = asyncHandler(async (req, res) => {
       type: "room_invite",
       message: notification.message,
       isRead: notification.isRead,
-      roomId, // ✅ include roomId here
+      roomId,
       createdAt: notification.createdAt,
       updatedAt: notification.updatedAt,
     };
+
     const io = getIo();
 
-    io.to(friendId.toString()).emit("notification:new", formattedNotification);
+    // ✅ race-condition safe emit
+    const sendInviteSafely = async (attempt = 1) => {
+      const sockets = getUserSocketId(friendId);
+      if (sockets.size === 0) {
+        if (attempt <= 3) {
+          // retry up to 3 times
+          console.warn(`⚠️ User ${friendId} not online yet (try ${attempt})`);
+          setTimeout(() => sendInviteSafely(attempt + 1), 1500);
+        } else {
+          console.warn(`❌ User ${friendId} still offline after retries`);
+        }
+        return;
+      }
+
+      sockets.forEach((id) =>
+        io.to(id).emit("notification:new", formattedNotification)
+      );
+      console.log(`✅ Invite sent to ${friend.username} (${friendId})`);
+    };
+
+    await sendInviteSafely(); // run it
+
     return res
       .status(200)
       .json(new ApiResponse(200, { notification }, "Invite sent"));
   } catch (error) {
+    console.error("Invite error:", error);
     res.status(500).json({ success: false, message: error.message });
   }
 });

@@ -1,6 +1,6 @@
 // socket.js
 import jwt from "jsonwebtoken";
-import cookie from "cookie-parser";
+import cookie from "cookie";
 import { registerSocketHandlers } from "../socket/syncHandlers.js";
 import { User } from "../models/user.model.js";
 import { addOnlineUser, removeOnlineUser } from "../socket/onlineUsers.js";
@@ -8,33 +8,49 @@ import { setIo } from "../socket/socket.js";
 
 export const initSocket = (io, pubClient, subClient) => {
   setIo(io);
-  // Redis subscriptions for Pub/Sub
-  // const setupRedisSubscriptions = async () => {
-  //   await subClient.subscribe("chat_message", (msg) => {
-  //     const { roomId, chat } = JSON.parse(msg);
-  //     io.to(roomId).emit("chat:receive", chat);
-  //   });
-  //   await subClient.subscribe("video_control", (msg) => {
-  //     if (!msg) return; // ignore empty messages
-  //     let parsed;
-  //     try {
-  //       parsed = JSON.parse(msg);
-  //     } catch (err) {
-  //       console.error("Invalid JSON from Redis:", msg);
-  //       return;
-  //     }
-  //     const { roomId, action, currentTime, by } = parsed;
-  //     io.to(roomId).emit("video:control", {
-  //       action,
-  //       currentTime,
-  //       by,
-  //       socketId: socket.id,
-  //     });
-  //   });
+  subClient.on("message", (channel, message) => {
+    if (!message) return;
+    try {
+      const data = JSON.parse(message);
+      switch (channel) {
+        case "chat_message":
+          io.to(data.roomId).emit("chat:receive", data.chat);
+          break;
+        case "video_control":
+          io.to(data.roomId).emit("video:control", {
+            action: data.action,
+            currentTime: data.currentTime,
+            by: data.by,
+          });
+          break;
+        default:
+          console.log("📡 Unknown Redis channel:", channel);
+      }
+    } catch (err) {
+      console.error("Invalid Redis message:", err);
+    }
+  });
 
-  //   console.log("✅ Redis Pub/Sub subscriptions initialized");
-  // };
-  // setupRedisSubscriptions().catch(console.error);
+  subClient.subscribe("user:online", (msg) => {
+    if (!msg) return;
+    try {
+      const { userId } = JSON.parse(msg);
+      console.log("🟢 Another instance reports online user:", userId);
+    } catch (err) {
+      console.error("Invalid JSON in user:online message:", msg);
+    }
+  });
+
+  subClient.subscribe("user:offline", (msg) => {
+    if (!msg) return;
+    try {
+      const { userId } = JSON.parse(msg);
+      console.log("🔴 Another instance reports offline user:", userId);
+    } catch (err) {
+      console.error("Invalid JSON in user:offline message:", msg);
+    }
+  });
+
   io.use(async (socket, next) => {
     try {
       // Extract cookies from the socket handshake headers
@@ -79,12 +95,6 @@ export const initSocket = (io, pubClient, subClient) => {
       console.log("⚠️ No user found on socket, cannot add to onlineUsers");
     }
     registerSocketHandlers(io, socket, pubClient, subClient);
-
-    socket.on("chat-message", (msg) => {
-      console.log(`Message from user ${socket.id} is ${msg}`);
-
-      io.emit("chat-message", { user: socket.user.username, msg });
-    });
 
     socket.on("disconnect", () => {
       removeOnlineUser(socket.user._id);

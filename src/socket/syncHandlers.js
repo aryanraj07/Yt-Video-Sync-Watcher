@@ -13,7 +13,8 @@ export const registerSocketHandlers = (io, socket, pubClient) => {
       const userCount = current ? parseInt(current) + 1 : 1;
 
       // Save new count and auto-expire after 10 mins
-      await redisClient.set(`room:users:${roomId}`, userCount, { EX: 600 });
+      await redisClient.set(`room:users:${roomId}`, userCount);
+      await redisClient.expire(`video:state:${roomId}`, 600);
 
       // optionally add socket.id to a room map or DB
       // notify others
@@ -102,9 +103,8 @@ export const registerSocketHandlers = (io, socket, pubClient) => {
         by: socket.user.username,
         updatedAt: Date.now(),
       };
-      await redisClient.set(`video:state:${roomId}`, JSON.stringify(state), {
-        EX: 3600,
-      });
+      await redisClient.set(`video:state:${roomId}`, JSON.stringify(state));
+      await redisClient.expire(`video:state:${roomId}`, 600);
 
       // Publish to Redis so all backend servers get this event
       await pubClient.publish("video_control", JSON.stringify(state));
