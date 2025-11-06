@@ -34,13 +34,13 @@ subClient.subscribe("video_control", (err, count) => {
   console.log(`✅ Subscribed to video_control (${count} channels)`);
 });
 
-subClient.on("message", (channel, message) => {
-  if (!message) return;
-  try {
-    const parsed = JSON.parse(message);
-    // You will handle this in socket middleware
-    console.log(`Received message on ${channel}:`, parsed);
-  } catch (err) {
-    console.error(`Invalid JSON from channel ${channel}:`, message);
-  }
-});
+// subClient.on("message", (channel, message) => {
+//   if (!message) return;
+//   try {
+//     const parsed = JSON.parse(message);
+//     // You will handle this in socket middleware
+//     console.log(`Received message on ${channel}:`, parsed);
+//   } catch (err) {
+//     console.error(`Invalid JSON from channel ${channel}:`, message);
+//   }
+// });

@@ -14,7 +14,10 @@ export const initSocket = (io, pubClient, subClient) => {
       const data = JSON.parse(message);
       switch (channel) {
         case "chat_message":
-          io.to(data.roomId).emit("chat:receive", data.chat);
+          io.to(data.roomId).emit("chat:receive", {
+            chat: data.chat,
+            tempId: data.tempId,
+          });
           break;
         case "video_control":
           io.to(data.roomId).emit("video:control", {

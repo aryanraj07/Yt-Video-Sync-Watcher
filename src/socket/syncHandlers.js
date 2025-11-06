@@ -2,7 +2,34 @@ import { Chat } from "../models/chat.model.js";
 import { Notification } from "../models/notification.model.js";
 import { getUserSocketId } from "./onlineUsers.js";
 import { client as redisClient } from "../db/redisClient.js";
+const redisLPush = async (key, value) => {
+  if (!redisClient) throw new Error("redisClient not initialized");
+  if (typeof redisClient.lPush === "function")
+    return redisClient.lPush(key, value);
+  if (typeof redisClient.lpush === "function")
+    return redisClient.lpush(key, value);
+  if (typeof redisClient.sendCommand === "function")
+    return redisClient.sendCommand(["LPUSH", key, value]);
+  throw new Error("redis client does not support LPUSH");
+};
 
+const redisLTrim = async (key, start, stop) => {
+  if (typeof redisClient.lTrim === "function")
+    return redisClient.lTrim(key, start, stop);
+  if (typeof redisClient.ltrim === "function")
+    return redisClient.ltrim(key, start, stop);
+  if (typeof redisClient.sendCommand === "function")
+    return redisClient.sendCommand(["LTRIM", key, String(start), String(stop)]);
+  throw new Error("redis client does not support LTRIM");
+};
+
+const redisExpire = async (key, seconds) => {
+  if (typeof redisClient.expire === "function")
+    return redisClient.expire(key, seconds);
+  if (typeof redisClient.sendCommand === "function")
+    return redisClient.sendCommand(["EXPIRE", key, String(seconds)]);
+  throw new Error("redis client does not support EXPIRE");
+};
 export const registerSocketHandlers = (io, socket, pubClient) => {
   // socket.user populated by middleware (id, username)
   if (!socket.user) return;
@@ -54,28 +81,45 @@ export const registerSocketHandlers = (io, socket, pubClient) => {
       socket.emit("error", { message: "Failed to leave room" });
     }
   });
-  socket.on("chat:send", async ({ roomId, message }) => {
+  socket.on("chat:send", async ({ roomId, message, tempId }) => {
     try {
+      console.log("📨 Received chat:send from", socket.user?.username, message);
+      console.log(roomId, socket.user._id);
+      const text =
+        typeof message === "string"
+          ? message
+          : message && typeof message.text === "string"
+            ? message.text
+            : JSON.stringify(message);
       const chat = await Chat.create({
         roomId,
         sender: socket.user._id,
-        message,
+        message: text,
       });
       console.log(chat);
+      console.log("✅ Chat saved:", chat);
 
       const populated = await chat.populate("sender", "username avatar");
-      await redisClient.lPush(`chat:${roomId}`, JSON.stringify(populated));
-      await redisClient.lTrim(`chat:${roomId}`, 0, 99); // keep last 100
+      await redisLPush(`chat:${roomId}`, JSON.stringify(populated));
+      await redisLTrim(`chat:${roomId}`, 0, 99); // keep last 100
 
-      await redisClient.expire(`chat:${roomId}`, 3600); // 1 hour
+      await redisExpire(`chat:${roomId}`, 3600); // 1 hour
       // publish to Redis channel
-      await pubClient.publish(
-        "chat_message",
-        JSON.stringify({ roomId, chat: populated })
-      );
-
-      io.to(roomId).emit("chat:receive", populated);
+      if (pubClient && typeof pubClient.publish === "function") {
+        await pubClient.publish(
+          "chat_message",
+          JSON.stringify({ roomId, chat: populated, tempId })
+        );
+      } else {
+        console.warn(
+          "⚠️ pubClient.publish not available — skipping Redis publish"
+        );
+      }
+      // io.to(roomId).emit("chat:receive", populated);
     } catch (err) {
+      console.log(err);
+      console.log(err.stack);
+
       socket.emit("error", { error: "Message Failed" });
     }
   });
