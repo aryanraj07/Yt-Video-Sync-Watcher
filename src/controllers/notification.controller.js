@@ -29,6 +29,7 @@ export const getUserNotifications = asyncHandler(async (req, res) => {
 export const markNotificationRead = asyncHandler(async (req, res) => {
   try {
     await Notification.findByIdAndUpdate(req.params?._id, { isRead: true });
+
     return res
       .status(200)
       .send(new ApiResponse(200, true, "Notifications marked as read"));
