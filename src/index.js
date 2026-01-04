@@ -15,7 +15,7 @@ import { initSocket } from "./middlewares/socket.middleware.js";
 import { instrument } from "@socket.io/admin-ui";
 import { createClient } from "redis";
 import { createAdapter } from "@socket.io/redis-adapter";
-import { client, pubClient, subClient } from "../src/db/redisClient.js";
+import { pubClient, subClient } from "../src/db/redisClient.js";
 const port = process.env.PORT || 8002;
 
 connectDb()
@@ -30,13 +30,16 @@ const io = new Server(server, {
     credentials: true,
   },
 });
-io.adapter(createAdapter(pubClient, subClient));
-
+if (pubClient && subClient) {
+  io.adapter(createAdapter(pubClient, subClient));
+  console.log("✅ Redis adapter enabled");
+} else {
+  console.warn("⚠️ Redis adapter disabled (dev mode)");
+}
 // Pass clients to Socket initialization
 initSocket(io, pubClient, subClient);
 
 // Optional test
-
 
 instrument(io, { auth: false });
 

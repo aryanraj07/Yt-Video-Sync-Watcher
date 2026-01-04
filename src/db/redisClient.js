@@ -1,46 +1,27 @@
-import Redis from "ioredis";
+import { createClient } from "redis";
 import dotenv from "dotenv";
 dotenv.config();
 
-const redisUrl = process.env.REDIS_URL;
-
-// General client (for caching, normal commands)
-export const client = new Redis(redisUrl, {
-  maxRetriesPerRequest: null,
+export const client = createClient({
+  username: "default",
+  password: process.env.REDIS_PASSWORD,
+  socket: {
+    host: process.env.REDIS_HOST,
+    port: Number(process.env.REDIS_PORT),
+    // ❌ NO tls
+  },
 });
 
-// Publisher client
-export const pubClient = new Redis(redisUrl, {
-  maxRetriesPerRequest: null,
-});
+client.on("connect", () => console.log("✅ Redis connecting"));
+client.on("ready", () => console.log("🚀 Redis ready"));
+client.on("error", (err) =>
+  console.error("❌ Redis Client Error", err.message)
+);
 
-// Subscriber client (only for subscribing)
-export const subClient = new Redis(redisUrl, {
-  maxRetriesPerRequest: null,
-});
+await client.connect();
 
-// Subscribe safely
-subClient.on("connect", () => console.log("✅ Redis Sub connected"));
-subClient.on("error", (err) => console.error("Redis Sub Error:", err));
-subClient.on("close", () => console.warn("Redis Sub connection closed"));
+export const pubClient = client.duplicate();
+export const subClient = client.duplicate();
 
-subClient.subscribe("chat_message", (err, count) => {
-  if (err) return console.error("Subscribe error:", err);
-  console.log(`✅ Subscribed to chat_message (${count} channels)`);
-});
-
-subClient.subscribe("video_control", (err, count) => {
-  if (err) return console.error("Subscribe error:", err);
-  console.log(`✅ Subscribed to video_control (${count} channels)`);
-});
-
-// subClient.on("message", (channel, message) => {
-//   if (!message) return;
-//   try {
-//     const parsed = JSON.parse(message);
-//     // You will handle this in socket middleware
-//     console.log(`Received message on ${channel}:`, parsed);
-//   } catch (err) {
-//     console.error(`Invalid JSON from channel ${channel}:`, message);
-//   }
-// });
+await pubClient.connect();
+await subClient.connect();

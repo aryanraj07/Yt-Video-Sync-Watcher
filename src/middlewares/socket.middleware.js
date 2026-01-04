@@ -8,52 +8,53 @@ import { setIo } from "../socket/socket.js";
 
 export const initSocket = (io, pubClient, subClient) => {
   setIo(io);
-  subClient.on("message", (channel, message) => {
-    if (!message) return;
-    try {
-      const data = JSON.parse(message);
-      switch (channel) {
-        case "chat_message":
-          io.to(data.roomId).emit("chat:receive", {
-            chat: data.chat,
-            tempId: data.tempId,
-          });
-          break;
-        case "video_control":
-          io.to(data.roomId).emit("video:control", {
-            action: data.action,
-            currentTime: data.currentTime,
-            by: data.by,
-          });
-          break;
-        default:
-          console.log("📡 Unknown Redis channel:", channel);
+  if (subClient) {
+    subClient.on("message", (channel, message) => {
+      if (!message) return;
+      try {
+        const data = JSON.parse(message);
+        switch (channel) {
+          case "chat_message":
+            io.to(data.roomId).emit("chat:receive", {
+              chat: data.chat,
+              tempId: data.tempId,
+            });
+            break;
+          case "video_control":
+            io.to(data.roomId).emit("video:control", {
+              action: data.action,
+              currentTime: data.currentTime,
+              by: data.by,
+            });
+            break;
+          default:
+            console.log("📡 Unknown Redis channel:", channel);
+        }
+      } catch (err) {
+        console.error("Invalid Redis message:", err);
       }
-    } catch (err) {
-      console.error("Invalid Redis message:", err);
-    }
-  });
+    });
 
-  subClient.subscribe("user:online", (msg) => {
-    if (!msg) return;
-    try {
-      const { userId } = JSON.parse(msg);
-      console.log("🟢 Another instance reports online user:", userId);
-    } catch (err) {
-      console.error("Invalid JSON in user:online message:", msg);
-    }
-  });
+    subClient.subscribe("user:online", (msg) => {
+      if (!msg) return;
+      try {
+        const { userId } = JSON.parse(msg);
+        console.log("🟢 Another instance reports online user:", userId);
+      } catch (err) {
+        console.error("Invalid JSON in user:online message:", msg);
+      }
+    });
 
-  subClient.subscribe("user:offline", (msg) => {
-    if (!msg) return;
-    try {
-      const { userId } = JSON.parse(msg);
-      console.log("🔴 Another instance reports offline user:", userId);
-    } catch (err) {
-      console.error("Invalid JSON in user:offline message:", msg);
-    }
-  });
-
+    subClient.subscribe("user:offline", (msg) => {
+      if (!msg) return;
+      try {
+        const { userId } = JSON.parse(msg);
+        console.log("🔴 Another instance reports offline user:", userId);
+      } catch (err) {
+        console.error("Invalid JSON in user:offline message:", msg);
+      }
+    });
+  }
   io.use(async (socket, next) => {
     try {
       // Extract cookies from the socket handshake headers

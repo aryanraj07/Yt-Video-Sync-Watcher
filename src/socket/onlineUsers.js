@@ -10,6 +10,7 @@ export const addOnlineUser = async (userId, socketId) => {
   onlineUsers.get(id).add(socketId);
 
   // Optional: publish for cross-instance sync
+  if (!pubClient) return;
   await pubClient.publish(
     "user:online",
     JSON.stringify({ userId: id, socketId })
