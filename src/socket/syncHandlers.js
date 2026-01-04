@@ -31,7 +31,7 @@ import { redisSafe } from "../db/redisSafe.js";
 //     return redisSafe.sendCommand(["EXPIRE", key, String(seconds)]);
 //   throw new Error("redis client does not support EXPIRE");
 // };
-export const registerSocketHandlers = (io, socket, pubClient) => {
+export const registerSocketHandlers = (io, socket, pubClient, subClient) => {
   // socket.user populated by middleware (id, username)
   if (!socket.user) return;
   socket.on("room:join", async ({ roomId }) => {
@@ -97,14 +97,12 @@ export const registerSocketHandlers = (io, socket, pubClient) => {
         sender: socket.user._id,
         message: text,
       });
-      console.log(chat);
-      console.log("✅ Chat saved:", chat);
 
       const populated = await chat.populate("sender", "username avatar");
-      await redisLPush(`chat:${roomId}`, JSON.stringify(populated));
-      await redisLTrim(`chat:${roomId}`, 0, 99); // keep last 100
+      await redisSafe.lPush(`chat:${roomId}`, JSON.stringify(populated));
+      await redisSafe.lTrim(`chat:${roomId}`, 0, 99); // keep last 100
 
-      await redisExpire(`chat:${roomId}`, 3600); // 1 hour
+      await redisSafe.expire(`chat:${roomId}`, 3600); // 1 hour
       // publish to Redis channel
 
       await pubClient.publish(
@@ -120,10 +118,10 @@ export const registerSocketHandlers = (io, socket, pubClient) => {
       socket.emit("error", { error: "Message Failed" });
     }
   });
-  // subClient.subscribe("chat_message", (msg) => {
-  //   const { roomId, chat } = JSON.parse(msg);
-  //   io.to(roomId).emit("chat:receive", chat);
-  // });
+  subClient.subscribe("chat_message", (msg) => {
+    const { roomId, chat } = JSON.parse(msg);
+    io.to(roomId).emit("chat:receive", chat);
+  });
 
   socket.on("chat:typing", async ({ roomId }) => {
     try {
